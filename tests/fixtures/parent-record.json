@@ -1,0 +1,23 @@
+{
+  "data": {
+    "type": "records",
+    "id": "9080",
+    "attributes": {
+      "description": null,
+      "title": "Cryopak Temperature/%RH Data Logger",
+      "module": "Workflow",
+      "date_created": "2026-06-04T16:18:08+00:00",
+      "date_updated": "2026-06-04T16:20:03+00:00",
+      "pkey": "AMR-0001",
+      "cf_assetsystem_description": "4 Channel Digital Timer",
+      "cf_asset_system_id": "BT-00375-EQ",
+      "cf_as_found_data_table": "[{\"name\":\"c96ae8cc-2ca6-4b6b-b8d9-0cdd0207ac24\",\"values\":{\"cf_data_points\":\"123\",\"cf_unit\":\"123\",\"cf_standard_reading_as_found\":\"\",\"cf_uut_as_found\":\"\",\"cf_difference_as_found\":\"\",\"cf_calibration_tolerance\":\"\",\"cf_results\":\"\",\"cf_estimated_measured_uncertainties\":\"123\"}}]",
+      "cf_as_left_data_table": "[{\"name\":\"e1eaee97-bee9-40fe-b9f5-f8949df95269\",\"values\":{\"cf_data_points\":\"123\",\"cf_unit\":\"123\",\"cf_standard_reading_as_left\":\"\",\"cf_uut_as_left\":\"\",\"cf_difference_as_left\":\"\",\"cf_calibration_tolerance\":\"\",\"cf_results\":\"\",\"cf_estimated_measured_uncertainties\":\"123\"}}]",
+      "cf_manufacture_range_calibration_tolerance": "[{\"name\":\"534d8151-bb00-4772-a877-a5a288c047fb\",\"values\":{\"cf_manufacture_range\":\"123\",\"cf_manufacture_calibration_tolerance\":\"123\"}}]",
+      "cf_calibration_range_tolerance": "[{\"name\":\"4e034e7e-bd73-40cf-983b-47603554204e\",\"values\":{\"cf_calibration_range\":\"-196\\u00b0C to 420\\u00b0C\",\"cf_calibration_tolerance\":\"\\u00b1 0.005\"}}]"
+    },
+    "links": {
+      "self": "/gateway/v3/records/9080"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# Environment variables
+.env
+secrets.env
+
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.vscode/
+.DS_Store
+
+# URS documents
+*.pdf

@@ -1,0 +1,12 @@
+{
+  "name": "metrology-measurement-data-api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test tests/table-helpers.test.js tests/ace-api.test.js tests/index.test.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1"
+  }
+}

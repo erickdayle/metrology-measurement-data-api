@@ -1,0 +1,29 @@
+{
+  "data": {
+    "type": "records",
+    "id": "9069",
+    "attributes": {
+      "description": null,
+      "title": null,
+      "module": "NonTrainableDocument",
+      "date_created": "2026-05-26T19:36:31+00:00",
+      "date_updated": "2026-05-26T19:37:56+00:00",
+      "pkey": "AMG-0003-CAL-3116",
+      "cf_model": "123",
+      "cf_serial_number": "123",
+      "cf_asset_system_id": "123",
+      "cf_parent_record": 9080
+    },
+    "links": {
+      "self": "/gateway/v3/records/9069"
+    },
+    "relationships": {
+      "parent": {
+        "data": {
+          "id": 9080,
+          "type": "records"
+        }
+      }
+    }
+  }
+}
