@@ -64,7 +64,7 @@ describe("run() — happy path", () => {
     // Suppress process.exit for this test
     const exitMock = mock.method(process, "exit", () => {});
 
-    await run(childFixture.data.id);
+    await run(childFixture.data.id, "4");
 
     // All 4 tables should have been POSTed
     assert.equal(postCalls.length, 4);
@@ -103,7 +103,7 @@ describe("run() — happy path", () => {
     });
     mock.method(process, "exit", () => {});
 
-    await run(childFixture.data.id);
+    await run(childFixture.data.id, "4");
 
     const originalUuids = [
       "c96ae8cc-2ca6-4b6b-b8d9-0cdd0207ac24",
@@ -152,7 +152,7 @@ describe("run() — missing cf_parent_record", () => {
     let exitCode;
     mock.method(process, "exit", (code) => { exitCode = code; throw new Error(`process.exit(${code})`); });
 
-    await assert.rejects(() => run("9069"), /process\.exit\(1\)/);
+    await assert.rejects(() => run("9069", "4"), /process\.exit\(1\)/);
     assert.equal(exitCode, 1);
   });
 });
@@ -187,7 +187,7 @@ describe("run() — parent missing a table field", () => {
     });
     mock.method(process, "exit", () => {});
 
-    await run(childFixture.data.id);
+    await run(childFixture.data.id, "4");
 
     // Only 3 of 4 tables should be posted
     assert.equal(postCalls.length, 3);

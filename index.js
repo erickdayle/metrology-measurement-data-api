@@ -25,13 +25,13 @@ const TABLE_MAP = [
   },
 ];
 
-export async function run(childRecordId) {
+export async function run(childRecordId, projectId) {
   if (!childRecordId) {
-    console.error(`[${new Date().toISOString()}] ERROR: childRecordId argument is required. Usage: node index.js <childRecordId>`);
+    console.error(`[${new Date().toISOString()}] ERROR: childRecordId argument is required. Usage: node index.js <childRecordId> <projectId>`);
     process.exit(1);
   }
 
-  console.log(`[${new Date().toISOString()}] Starting migration for child record: ${childRecordId}`);
+  console.log(`[${new Date().toISOString()}] Starting migration for child record: ${childRecordId} (project: ${projectId})`);
 
   // 1. Fetch child record to get parent record ID
   let childRecord;
@@ -96,5 +96,5 @@ const isMain = process.argv[1] && (
 );
 
 if (isMain) {
-  run(process.argv[2]);
+  run(process.argv[2], process.argv[3]);
 }
