@@ -66,7 +66,7 @@ describe("buildTableRows", () => {
     assert.notEqual(rows[0].name, rows[1].name);
   });
 
-  it("preserves the values object exactly", () => {
+  it("spreads values directly into attributes", () => {
     const input = [
       {
         name: "old-uuid",
@@ -78,13 +78,13 @@ describe("buildTableRows", () => {
       },
     ];
     const rows = buildTableRows(input);
-    assert.deepEqual(rows[0].values, input[0].values);
+    assert.deepEqual(rows[0].attributes, input[0].values);
   });
 
-  it("uses empty object for rows missing values", () => {
+  it("uses empty object for attributes when values is missing", () => {
     const input = [{ name: "old-uuid" }];
     const rows = buildTableRows(input);
-    assert.deepEqual(rows[0].values, {});
+    assert.deepEqual(rows[0].attributes, {});
   });
 
   it("returns [] for empty input", () => {

@@ -14,6 +14,6 @@ export function buildTableRows(parsedRows) {
   return parsedRows.map((row) => ({
     type: "record-table-row",
     name: randomUUID(),
-    values: row.values ?? {},
+    attributes: row.values ?? {},
   }));
 }
