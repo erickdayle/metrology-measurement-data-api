@@ -183,6 +183,34 @@ describe("run() — missing cf_parent_record", () => {
     await run("9069", "4");
     assert.equal(postCalls.length, 4);
   });
+
+  it("resolves parent via cf_asset_id when cf_parent_record and cf_parent_asset are absent", async () => {
+    const childWithAssetId = {
+      data: {
+        ...childFixture.data,
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null, cf_asset_id: 9080 },
+      },
+    };
+
+    const postCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (url.includes("/table/")) {
+        postCalls.push(url);
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url.includes("/records/9069/meta")) {
+        return { ok: true, status: 200, json: async () => childWithAssetId };
+      }
+      if (url.includes(`/records/${parentFixture.data.id}/meta`)) {
+        return { ok: true, status: 200, json: async () => parentFixture };
+      }
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+
+    await run("9069", "4");
+    assert.equal(postCalls.length, 4);
+  });
 });
 
 describe("run() — parent missing a table field", () => {

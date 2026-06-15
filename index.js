@@ -42,9 +42,9 @@ export async function run(childRecordId, projectId) {
     process.exit(1);
   }
 
-  const parentRecordId = childRecord?.attributes?.cf_parent_record ?? childRecord?.attributes?.cf_parent_asset;
+  const parentRecordId = childRecord?.attributes?.cf_parent_record ?? childRecord?.attributes?.cf_parent_asset ?? childRecord?.attributes?.cf_asset_id;
   if (!parentRecordId) {
-    console.error(`[${new Date().toISOString()}] ERROR: Child record ${childRecordId} has no cf_parent_record or cf_parent_asset field.`);
+    console.error(`[${new Date().toISOString()}] ERROR: Child record ${childRecordId} has no cf_parent_record, cf_parent_asset, or cf_asset_id field.`);
     process.exit(1);
   }
 
