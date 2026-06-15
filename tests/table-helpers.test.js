@@ -48,6 +48,12 @@ describe("buildTableRows", () => {
     assert.equal(buildTableRows(input).length, 2);
   });
 
+  it("sets type to record-table-row on each row", () => {
+    const input = [{ name: "old-uuid", values: { cf_data_points: "10" } }];
+    const rows = buildTableRows(input);
+    assert.equal(rows[0].type, "record-table-row");
+  });
+
   it("generates a fresh UUID for each row name", () => {
     const input = [
       { name: "old-uuid-1", values: { cf_data_points: "10" } },

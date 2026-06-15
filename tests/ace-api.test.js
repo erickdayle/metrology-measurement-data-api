@@ -110,8 +110,8 @@ describe("postTableRows", () => {
     const rows = [{ name: "uuid-1", values: { cf_data_points: "5" } }];
     await postTableRows("9069", "207", rows);
 
-    assert.equal(capturedBody.data.type, "table");
-    assert.deepEqual(capturedBody.data.table, rows);
+    assert.equal(capturedBody.data.type, "record-table");
+    assert.deepEqual(capturedBody.data.rows, rows);
   });
 
   it("throws on API error", async () => {

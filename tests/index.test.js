@@ -76,11 +76,11 @@ describe("run() — happy path", () => {
     assert.ok(fieldIds.includes("221"), "Manufacture table (221) was posted");
     assert.ok(fieldIds.includes("222"), "Cal Range table (222) was posted");
 
-    // Each POST body should have type: "table" and at least 1 row
+    // Each POST body should have type: "record-table" and at least 1 row
     for (const call of postCalls) {
-      assert.equal(call.body.data.type, "table");
-      assert.ok(Array.isArray(call.body.data.table));
-      assert.ok(call.body.data.table.length > 0);
+      assert.equal(call.body.data.type, "record-table");
+      assert.ok(Array.isArray(call.body.data.rows));
+      assert.ok(call.body.data.rows.length > 0);
     }
 
     exitMock.mock.restore();
@@ -113,7 +113,7 @@ describe("run() — happy path", () => {
     ];
 
     for (const payload of postedTables) {
-      for (const row of payload.data.table) {
+      for (const row of payload.data.rows) {
         assert.ok(!originalUuids.includes(row.name), `Row name ${row.name} should be a fresh UUID`);
       }
     }

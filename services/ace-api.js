@@ -58,6 +58,6 @@ export const getRecordMetadata = async (recordId) => {
 export const postTableRows = async (recordId, fieldId, rows) => {
   return apiFetch(`/records/${recordId}/table/${fieldId}`, {
     method: "POST",
-    body: JSON.stringify({ data: { type: "table", table: rows } }),
+    body: JSON.stringify({ data: { type: "record-table", rows } }),
   });
 };
