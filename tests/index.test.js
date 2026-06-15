@@ -135,11 +135,11 @@ describe("run() — missing childRecordId", () => {
 describe("run() — missing cf_parent_record", () => {
   afterEach(() => mock.restoreAll());
 
-  it("calls process.exit(1) when child has no cf_parent_record", async () => {
+  it("calls process.exit(1) when child has neither cf_parent_record nor cf_parent_asset", async () => {
     const childWithoutParent = {
       data: {
         ...childFixture.data,
-        attributes: { ...childFixture.data.attributes, cf_parent_record: null },
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null },
       },
     };
 
@@ -154,6 +154,34 @@ describe("run() — missing cf_parent_record", () => {
 
     await assert.rejects(() => run("9069", "4"), /process\.exit\(1\)/);
     assert.equal(exitCode, 1);
+  });
+
+  it("resolves parent via cf_parent_asset when cf_parent_record is absent", async () => {
+    const childWithParentAsset = {
+      data: {
+        ...childFixture.data,
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: 9080 },
+      },
+    };
+
+    const postCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (url.includes("/table/")) {
+        postCalls.push(url);
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url.includes("/records/9069/meta")) {
+        return { ok: true, status: 200, json: async () => childWithParentAsset };
+      }
+      if (url.includes(`/records/${parentFixture.data.id}/meta`)) {
+        return { ok: true, status: 200, json: async () => parentFixture };
+      }
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+
+    await run("9069", "4");
+    assert.equal(postCalls.length, 4);
   });
 });
 
