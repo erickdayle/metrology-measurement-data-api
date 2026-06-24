@@ -141,13 +141,8 @@ export async function run(recordId, projectId) {
     process.exit(1);
   }
 
-  const assetProjectId = process.env.ASSET_ID;
-
-  if (projectId === assetProjectId) {
-    await runCalculations(recordId);
-  } else {
-    await runMigration(recordId);
-  }
+  await runMigration(recordId);
+  await runCalculations(recordId);
 }
 
 const isMain = process.argv[1] && (
