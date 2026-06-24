@@ -63,8 +63,10 @@ async function runCalculations(recordId) {
 
     const updatedRows = rows.map((row) => ({
       type: "record-table-row",
-      name: row.name,
-      attributes: table.computeFn(row.values ?? {}),
+      attributes: {
+        name: row.name,
+        ...table.computeFn(row.values ?? {}),
+      },
     }));
 
     try {
