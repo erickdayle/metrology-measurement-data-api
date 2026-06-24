@@ -31,34 +31,44 @@ export function evaluateTolerance(difference, tolerance) {
   }
 }
 
+function getDecimalPlaces(str) {
+  if (!str || typeof str !== "string") return 0;
+  const parts = str.trim().split(".");
+  return parts.length > 1 ? parts[1].length : 0;
+}
+
 export function computeAsFoundRow(values) {
-  const std = parseFloat(values.cf_standard_reading_as_found);
+  const stdRaw = values.cf_standard_reading_as_found;
+  const std = parseFloat(stdRaw);
   const uut = parseFloat(values.cf_uut_as_found);
   if (!Number.isFinite(std) || !Number.isFinite(uut)) return values;
 
+  const decimals = getDecimalPlaces(stdRaw);
   const difference = Math.abs(std - uut);
   const tolerance = parseTolerance(values.cf_calibration_tolerance);
   const pass = evaluateTolerance(difference, tolerance);
 
   return {
     ...values,
-    cf_difference_as_found: String(difference),
+    cf_difference_as_found: difference.toFixed(decimals),
     cf_results: pass === null ? values.cf_results : (pass ? "PASS" : "FAIL"),
   };
 }
 
 export function computeAsLeftRow(values) {
-  const std = parseFloat(values.cf_standard_reading_as_left);
+  const stdRaw = values.cf_standard_reading_as_left;
+  const std = parseFloat(stdRaw);
   const uut = parseFloat(values.cf_uut_as_left);
   if (!Number.isFinite(std) || !Number.isFinite(uut)) return values;
 
+  const decimals = getDecimalPlaces(stdRaw);
   const difference = Math.abs(std - uut);
   const tolerance = parseTolerance(values.cf_calibration_tolerance);
   const pass = evaluateTolerance(difference, tolerance);
 
   return {
     ...values,
-    cf_difference_as_left: String(difference),
+    cf_difference_as_left: difference.toFixed(decimals),
     cf_results: pass === null ? values.cf_results : (pass ? "PASS" : "FAIL"),
   };
 }

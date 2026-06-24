@@ -186,16 +186,16 @@ describe("evaluateTolerance", () => {
 });
 
 describe("computeAsFoundRow", () => {
-  it("computes difference and PASS result", () => {
+  it("computes difference and PASS result, matching standard's decimal places", () => {
     const values = {
-      cf_standard_reading_as_found: "10.0",
-      cf_uut_as_found: "10.3",
+      cf_standard_reading_as_found: "10.00",
+      cf_uut_as_found: "10.30",
       cf_calibration_tolerance: "<=1.0",
       cf_difference_as_found: "",
       cf_results: "",
     };
     const result = computeAsFoundRow(values);
-    assert.ok(Math.abs(parseFloat(result.cf_difference_as_found) - 0.3) < 0.001);
+    assert.equal(result.cf_difference_as_found, "0.30");
     assert.equal(result.cf_results, "PASS");
   });
 
@@ -208,7 +208,7 @@ describe("computeAsFoundRow", () => {
       cf_results: "",
     };
     const result = computeAsFoundRow(values);
-    assert.equal(result.cf_difference_as_found, "2");
+    assert.equal(result.cf_difference_as_found, "2.0");
     assert.equal(result.cf_results, "FAIL");
   });
 
@@ -221,8 +221,20 @@ describe("computeAsFoundRow", () => {
       cf_results: "",
     };
     const result = computeAsFoundRow(values);
-    assert.equal(result.cf_difference_as_found, "3");
+    assert.equal(result.cf_difference_as_found, "3.0");
     assert.equal(result.cf_results, "PASS");
+  });
+
+  it("uses 0 decimal places when standard has no decimals", () => {
+    const values = {
+      cf_standard_reading_as_found: "10",
+      cf_uut_as_found: "12",
+      cf_calibration_tolerance: "<=5",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.equal(result.cf_difference_as_found, "2");
   });
 
   it("returns values unchanged when readings are empty", () => {
@@ -253,16 +265,16 @@ describe("computeAsFoundRow", () => {
 });
 
 describe("computeAsLeftRow", () => {
-  it("computes difference and PASS result", () => {
+  it("computes difference and PASS result, matching standard's decimal places", () => {
     const values = {
-      cf_standard_reading_as_left: "10.0",
-      cf_uut_as_left: "10.2",
+      cf_standard_reading_as_left: "10.00",
+      cf_uut_as_left: "10.20",
       cf_calibration_tolerance: "<=1.0",
       cf_difference_as_left: "",
       cf_results: "",
     };
     const result = computeAsLeftRow(values);
-    assert.ok(Math.abs(parseFloat(result.cf_difference_as_left) - 0.2) < 0.001);
+    assert.equal(result.cf_difference_as_left, "0.20");
     assert.equal(result.cf_results, "PASS");
   });
 
@@ -275,7 +287,7 @@ describe("computeAsLeftRow", () => {
       cf_results: "",
     };
     const result = computeAsLeftRow(values);
-    assert.equal(result.cf_difference_as_left, "2");
+    assert.equal(result.cf_difference_as_left, "2.0");
     assert.equal(result.cf_results, "FAIL");
   });
 

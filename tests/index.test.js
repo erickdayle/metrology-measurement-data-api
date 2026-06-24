@@ -237,12 +237,12 @@ describe("run() — calculations compute and PATCH", () => {
     assert.equal(patchCalls.length, 2);
 
     const asFoundPatch = patchCalls.find((c) => c.url.includes("/table/207"));
-    assert.ok(Math.abs(parseFloat(asFoundPatch.body.data[0].attributes.cf_difference_as_found) - 0.5) < 0.001);
+    assert.equal(asFoundPatch.body.data[0].attributes.cf_difference_as_found, "0.5");
     assert.equal(asFoundPatch.body.data[0].attributes.cf_results, "PASS");
     assert.equal(asFoundPatch.body.data[0].attributes.name, "row-1");
 
     const asLeftPatch = patchCalls.find((c) => c.url.includes("/table/208"));
-    assert.equal(asLeftPatch.body.data[0].attributes.cf_difference_as_left, "2");
+    assert.equal(asLeftPatch.body.data[0].attributes.cf_difference_as_left, "2.0");
     assert.equal(asLeftPatch.body.data[0].attributes.cf_results, "FAIL");
     assert.equal(asLeftPatch.body.data[0].attributes.name, "row-2");
   });
