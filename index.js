@@ -23,6 +23,11 @@ const TABLE_MAP = [
     parentField: "cf_calibration_range_tolerance",
     get fieldId() { return process.env.CALIBRATION_RANGE_TOLERANCE_DATA_TABLE_ID; },
   },
+  {
+    label: "Equipment Pricing",
+    parentField: "cf_equipment_pricing",
+    get fieldId() { return process.env.EQUIPMENT_PRICING_DATA_TABLE_ID; },
+  },
 ];
 
 export async function run(childRecordId, projectId) {

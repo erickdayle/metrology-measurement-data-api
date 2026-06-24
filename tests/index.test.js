@@ -13,6 +13,7 @@ process.env.AS_FOUND_DATA_TABLE_ID = "207";
 process.env.AS_LEFT_DATA_TABLE_ID = "208";
 process.env.MANUFACTURE_AND_CALIBRATION_DATA_TABLE_ID = "221";
 process.env.CALIBRATION_RANGE_TOLERANCE_DATA_TABLE_ID = "222";
+process.env.EQUIPMENT_PRICING_DATA_TABLE_ID = "200";
 
 const { run } = await import("../index.js");
 
@@ -66,8 +67,8 @@ describe("run() — happy path", () => {
 
     await run(childFixture.data.id, "4");
 
-    // All 4 tables should have been POSTed
-    assert.equal(postCalls.length, 4);
+    // All 5 tables should have been POSTed
+    assert.equal(postCalls.length, 5);
 
     // Check each table endpoint was called with the right field ID
     const fieldIds = postCalls.map((c) => c.url.split("/table/")[1]);
@@ -75,6 +76,7 @@ describe("run() — happy path", () => {
     assert.ok(fieldIds.includes("208"), "As Left table (208) was posted");
     assert.ok(fieldIds.includes("221"), "Manufacture table (221) was posted");
     assert.ok(fieldIds.includes("222"), "Cal Range table (222) was posted");
+    assert.ok(fieldIds.includes("200"), "Equipment Pricing table (200) was posted");
 
     // Each POST body should have an array of record-table-row objects
     for (const call of postCalls) {
@@ -181,7 +183,7 @@ describe("run() — missing cf_parent_record", () => {
     mock.method(process, "exit", () => {});
 
     await run("9069", "4");
-    assert.equal(postCalls.length, 4);
+    assert.equal(postCalls.length, 5);
   });
 
   it("resolves parent via cf_asset_id when cf_parent_record and cf_parent_asset are absent", async () => {
@@ -209,7 +211,7 @@ describe("run() — missing cf_parent_record", () => {
     mock.method(process, "exit", () => {});
 
     await run("9069", "4");
-    assert.equal(postCalls.length, 4);
+    assert.equal(postCalls.length, 5);
   });
 });
 
@@ -245,8 +247,8 @@ describe("run() — parent missing a table field", () => {
 
     await run(childFixture.data.id, "4");
 
-    // Only 3 of 4 tables should be posted
-    assert.equal(postCalls.length, 3);
+    // Only 4 of 5 tables should be posted (As Found skipped)
+    assert.equal(postCalls.length, 4);
     // Field 207 (As Found) should NOT have been called
     assert.ok(!postCalls.some((url) => url.includes("/table/207")));
   });
