@@ -55,9 +55,20 @@ export const getRecordMetadata = async (recordId) => {
   return response.data;
 };
 
+export const getTableRows = async (recordId, fieldId) => {
+  return apiFetch(`/records/${recordId}/table/${fieldId}`);
+};
+
 export const postTableRows = async (recordId, fieldId, rows) => {
   return apiFetch(`/records/${recordId}/table/${fieldId}`, {
     method: "POST",
+    body: JSON.stringify({ data: rows }),
+  });
+};
+
+export const patchTableRows = async (recordId, fieldId, rows) => {
+  return apiFetch(`/records/${recordId}/table/${fieldId}`, {
+    method: "PATCH",
     body: JSON.stringify({ data: rows }),
   });
 };

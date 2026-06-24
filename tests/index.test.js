@@ -14,6 +14,7 @@ process.env.AS_LEFT_DATA_TABLE_ID = "208";
 process.env.MANUFACTURE_AND_CALIBRATION_DATA_TABLE_ID = "221";
 process.env.CALIBRATION_RANGE_TOLERANCE_DATA_TABLE_ID = "222";
 process.env.EQUIPMENT_PRICING_DATA_TABLE_ID = "200";
+process.env.ASSET_ID = "1";
 
 const { run } = await import("../index.js");
 
@@ -25,33 +26,17 @@ const childFixture = JSON.parse(
   readFileSync(path.join(__dirname, "fixtures/child-record.json"), "utf8")
 );
 
-function buildFetchMock(childData, parentData, tablePostResponse = { success: true }) {
-  return async (url) => {
-    // Child record meta
-    if (url.includes(`/records/${childData.data.id}/meta`)) {
-      return { ok: true, status: 200, json: async () => childData };
-    }
-    // Parent record meta
-    if (url.includes(`/records/${parentData.data.id}/meta`)) {
-      return { ok: true, status: 200, json: async () => parentData };
-    }
-    // Table POST endpoints
-    if (url.includes("/table/")) {
-      return { ok: true, status: 200, json: async () => tablePostResponse };
-    }
-    return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
-  };
-}
+// --- Migration flow tests (projectId !== ASSET_ID) ---
 
-describe("run() — happy path", () => {
+describe("runMigration — happy path", () => {
   afterEach(() => mock.restoreAll());
 
-  it("fetches child, resolves parent, and posts all 4 tables", async () => {
+  it("fetches child, resolves parent, and posts all 5 tables", async () => {
     const postCalls = [];
     mock.method(globalThis, "fetch", async (url, opts) => {
-      if (url.includes("/table/")) {
-        postCalls.push({ url, body: JSON.parse(opts?.body ?? "{}") });
-        return { ok: true, status: 200, json: async () => ({ success: true }) };
+      if (url.includes("/table/") && opts?.method === "POST") {
+        postCalls.push({ url, body: JSON.parse(opts.body) });
+        return { ok: true, status: 200, json: async () => ({}) };
       }
       if (url.includes(`/records/${childFixture.data.id}/meta`)) {
         return { ok: true, status: 200, json: async () => childFixture };
@@ -61,37 +46,28 @@ describe("run() — happy path", () => {
       }
       return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
     });
-
-    // Suppress process.exit for this test
-    const exitMock = mock.method(process, "exit", () => {});
+    mock.method(process, "exit", () => {});
 
     await run(childFixture.data.id, "4");
 
-    // All 5 tables should have been POSTed
     assert.equal(postCalls.length, 5);
-
-    // Check each table endpoint was called with the right field ID
     const fieldIds = postCalls.map((c) => c.url.split("/table/")[1]);
-    assert.ok(fieldIds.includes("207"), "As Found table (207) was posted");
-    assert.ok(fieldIds.includes("208"), "As Left table (208) was posted");
-    assert.ok(fieldIds.includes("221"), "Manufacture table (221) was posted");
-    assert.ok(fieldIds.includes("222"), "Cal Range table (222) was posted");
-    assert.ok(fieldIds.includes("200"), "Equipment Pricing table (200) was posted");
+    assert.ok(fieldIds.includes("207"));
+    assert.ok(fieldIds.includes("208"));
+    assert.ok(fieldIds.includes("221"));
+    assert.ok(fieldIds.includes("222"));
+    assert.ok(fieldIds.includes("200"));
 
-    // Each POST body should have an array of record-table-row objects
     for (const call of postCalls) {
       assert.ok(Array.isArray(call.body.data));
-      assert.ok(call.body.data.length > 0);
       assert.equal(call.body.data[0].type, "record-table-row");
     }
-
-    exitMock.mock.restore();
   });
 
-  it("posted rows have fresh UUIDs (not the parent's original UUIDs)", async () => {
+  it("posted rows have fresh UUIDs", async () => {
     const postedTables = [];
     mock.method(globalThis, "fetch", async (url, opts) => {
-      if (url.includes("/table/")) {
+      if (url.includes("/table/") && opts?.method === "POST") {
         postedTables.push(JSON.parse(opts.body));
         return { ok: true, status: 200, json: async () => ({}) };
       }
@@ -112,134 +88,28 @@ describe("run() — happy path", () => {
       "e1eaee97-bee9-40fe-b9f5-f8949df95269",
       "534d8151-bb00-4772-a877-a5a288c047fb",
       "4e034e7e-bd73-40cf-983b-47603554204e",
+      "82da4d29-b705-458b-9f01-3a4c3e1a3be0",
     ];
 
     for (const payload of postedTables) {
       for (const row of payload.data) {
-        assert.ok(!originalUuids.includes(row.name), `Row name ${row.name} should be a fresh UUID`);
+        assert.ok(!originalUuids.includes(row.name));
       }
     }
   });
-});
 
-describe("run() — missing childRecordId", () => {
-  afterEach(() => mock.restoreAll());
-
-  it("calls process.exit(1) when no childRecordId is provided", async () => {
-    let exitCode;
-    mock.method(process, "exit", (code) => { exitCode = code; throw new Error(`process.exit(${code})`); });
-
-    await assert.rejects(() => run(undefined), /process\.exit\(1\)/);
-    assert.equal(exitCode, 1);
-  });
-});
-
-describe("run() — missing cf_parent_record", () => {
-  afterEach(() => mock.restoreAll());
-
-  it("calls process.exit(1) when child has neither cf_parent_record nor cf_parent_asset", async () => {
-    const childWithoutParent = {
-      data: {
-        ...childFixture.data,
-        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null },
-      },
-    };
-
-    mock.method(globalThis, "fetch", async () => ({
-      ok: true,
-      status: 200,
-      json: async () => childWithoutParent,
-    }));
-
-    let exitCode;
-    mock.method(process, "exit", (code) => { exitCode = code; throw new Error(`process.exit(${code})`); });
-
-    await assert.rejects(() => run("9069", "4"), /process\.exit\(1\)/);
-    assert.equal(exitCode, 1);
-  });
-
-  it("resolves parent via cf_parent_asset when cf_parent_record is absent", async () => {
-    const childWithParentAsset = {
-      data: {
-        ...childFixture.data,
-        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: 9080 },
-      },
-    };
-
-    const postCalls = [];
+  it("does NOT apply calculations during migration", async () => {
+    const postedBodies = [];
     mock.method(globalThis, "fetch", async (url, opts) => {
-      if (url.includes("/table/")) {
-        postCalls.push(url);
-        return { ok: true, status: 200, json: async () => ({}) };
-      }
-      if (url.includes("/records/9069/meta")) {
-        return { ok: true, status: 200, json: async () => childWithParentAsset };
-      }
-      if (url.includes(`/records/${parentFixture.data.id}/meta`)) {
-        return { ok: true, status: 200, json: async () => parentFixture };
-      }
-      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
-    });
-    mock.method(process, "exit", () => {});
-
-    await run("9069", "4");
-    assert.equal(postCalls.length, 5);
-  });
-
-  it("resolves parent via cf_asset_id when cf_parent_record and cf_parent_asset are absent", async () => {
-    const childWithAssetId = {
-      data: {
-        ...childFixture.data,
-        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null, cf_asset_id: 9080 },
-      },
-    };
-
-    const postCalls = [];
-    mock.method(globalThis, "fetch", async (url, opts) => {
-      if (url.includes("/table/")) {
-        postCalls.push(url);
-        return { ok: true, status: 200, json: async () => ({}) };
-      }
-      if (url.includes("/records/9069/meta")) {
-        return { ok: true, status: 200, json: async () => childWithAssetId };
-      }
-      if (url.includes(`/records/${parentFixture.data.id}/meta`)) {
-        return { ok: true, status: 200, json: async () => parentFixture };
-      }
-      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
-    });
-    mock.method(process, "exit", () => {});
-
-    await run("9069", "4");
-    assert.equal(postCalls.length, 5);
-  });
-});
-
-describe("run() — parent missing a table field", () => {
-  afterEach(() => mock.restoreAll());
-
-  it("skips the missing table and still posts the remaining ones", async () => {
-    const parentWithMissingTable = {
-      data: {
-        ...parentFixture.data,
-        attributes: {
-          ...parentFixture.data.attributes,
-          cf_as_found_data_table: null, // Remove one table
-        },
-      },
-    };
-
-    const postCalls = [];
-    mock.method(globalThis, "fetch", async (url, opts) => {
-      if (url.includes("/table/")) {
-        postCalls.push(url);
+      if (url.includes("/table/") && opts?.method === "POST") {
+        postedBodies.push({ url, body: JSON.parse(opts.body) });
         return { ok: true, status: 200, json: async () => ({}) };
       }
       if (url.includes(`/records/${childFixture.data.id}/meta`)) {
         return { ok: true, status: 200, json: async () => childFixture };
       }
       if (url.includes(`/records/${parentFixture.data.id}/meta`)) {
-        return { ok: true, status: 200, json: async () => parentWithMissingTable };
+        return { ok: true, status: 200, json: async () => parentFixture };
       }
       return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
     });
@@ -247,9 +117,204 @@ describe("run() — parent missing a table field", () => {
 
     await run(childFixture.data.id, "4");
 
-    // Only 4 of 5 tables should be posted (As Found skipped)
+    const asFoundPost = postedBodies.find((p) => p.url.includes("/table/207"));
+    assert.equal(asFoundPost.body.data[0].attributes.cf_difference_as_found, "");
+    assert.equal(asFoundPost.body.data[0].attributes.cf_results, "");
+  });
+});
+
+describe("runMigration — missing recordId", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("calls process.exit(1)", async () => {
+    let exitCode;
+    mock.method(process, "exit", (code) => { exitCode = code; throw new Error(`process.exit(${code})`); });
+    await assert.rejects(() => run(undefined), /process\.exit\(1\)/);
+    assert.equal(exitCode, 1);
+  });
+});
+
+describe("runMigration — missing parent fields", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("calls process.exit(1) when no parent field exists", async () => {
+    const childNoParent = {
+      data: {
+        ...childFixture.data,
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null, cf_asset_id: null },
+      },
+    };
+    mock.method(globalThis, "fetch", async () => ({
+      ok: true, status: 200, json: async () => childNoParent,
+    }));
+    let exitCode;
+    mock.method(process, "exit", (code) => { exitCode = code; throw new Error(`process.exit(${code})`); });
+    await assert.rejects(() => run("9069", "4"), /process\.exit\(1\)/);
+    assert.equal(exitCode, 1);
+  });
+
+  it("resolves parent via cf_parent_asset fallback", async () => {
+    const child = {
+      data: {
+        ...childFixture.data,
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: 9080 },
+      },
+    };
+    const postCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (url.includes("/table/") && opts?.method === "POST") { postCalls.push(url); return { ok: true, status: 200, json: async () => ({}) }; }
+      if (url.includes("/records/9069/meta")) return { ok: true, status: 200, json: async () => child };
+      if (url.includes(`/records/${parentFixture.data.id}/meta`)) return { ok: true, status: 200, json: async () => parentFixture };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+    await run("9069", "4");
+    assert.equal(postCalls.length, 5);
+  });
+
+  it("resolves parent via cf_asset_id fallback", async () => {
+    const child = {
+      data: {
+        ...childFixture.data,
+        attributes: { ...childFixture.data.attributes, cf_parent_record: null, cf_parent_asset: null, cf_asset_id: 9080 },
+      },
+    };
+    const postCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (url.includes("/table/") && opts?.method === "POST") { postCalls.push(url); return { ok: true, status: 200, json: async () => ({}) }; }
+      if (url.includes("/records/9069/meta")) return { ok: true, status: 200, json: async () => child };
+      if (url.includes(`/records/${parentFixture.data.id}/meta`)) return { ok: true, status: 200, json: async () => parentFixture };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+    await run("9069", "4");
+    assert.equal(postCalls.length, 5);
+  });
+});
+
+describe("runMigration — parent missing a table field", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("skips the missing table and posts the rest", async () => {
+    const parentMissing = {
+      data: {
+        ...parentFixture.data,
+        attributes: { ...parentFixture.data.attributes, cf_as_found_data_table: null },
+      },
+    };
+    const postCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (url.includes("/table/") && opts?.method === "POST") { postCalls.push(url); return { ok: true, status: 200, json: async () => ({}) }; }
+      if (url.includes(`/records/${childFixture.data.id}/meta`)) return { ok: true, status: 200, json: async () => childFixture };
+      if (url.includes(`/records/${parentFixture.data.id}/meta`)) return { ok: true, status: 200, json: async () => parentMissing };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+    await run(childFixture.data.id, "4");
     assert.equal(postCalls.length, 4);
-    // Field 207 (As Found) should NOT have been called
     assert.ok(!postCalls.some((url) => url.includes("/table/207")));
+  });
+});
+
+// --- Calculation flow tests (projectId === ASSET_ID) ---
+
+describe("runCalculations — happy path", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("GETs As Found and As Left tables, computes, and PATCHes them", async () => {
+    const asFoundRows = {
+      data: [{
+        name: "row-1",
+        values: {
+          cf_data_points: "1",
+          cf_standard_reading_as_found: "10.0",
+          cf_uut_as_found: "10.5",
+          cf_calibration_tolerance: "<=1.0",
+          cf_difference_as_found: "",
+          cf_results: "",
+        },
+      }],
+    };
+    const asLeftRows = {
+      data: [{
+        name: "row-2",
+        values: {
+          cf_data_points: "1",
+          cf_standard_reading_as_left: "20.0",
+          cf_uut_as_left: "22.0",
+          cf_calibration_tolerance: "<=1.0",
+          cf_difference_as_left: "",
+          cf_results: "",
+        },
+      }],
+    };
+
+    const patchCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (opts?.method === "PATCH") {
+        patchCalls.push({ url, body: JSON.parse(opts.body) });
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (url.includes("/table/207")) return { ok: true, status: 200, json: async () => asFoundRows };
+      if (url.includes("/table/208")) return { ok: true, status: 200, json: async () => asLeftRows };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+
+    await run("9080", "1");
+
+    assert.equal(patchCalls.length, 2);
+
+    // As Found: |10.0 - 10.5| = 0.5, <= 1.0 → PASS
+    const asFoundPatch = patchCalls.find((c) => c.url.includes("/table/207"));
+    assert.ok(Math.abs(parseFloat(asFoundPatch.body.data[0].attributes.cf_difference_as_found) - 0.5) < 0.001);
+    assert.equal(asFoundPatch.body.data[0].attributes.cf_results, "PASS");
+    assert.equal(asFoundPatch.body.data[0].name, "row-1");
+
+    // As Left: |20.0 - 22.0| = 2.0, <= 1.0 → FAIL
+    const asLeftPatch = patchCalls.find((c) => c.url.includes("/table/208"));
+    assert.equal(asLeftPatch.body.data[0].attributes.cf_difference_as_left, "2");
+    assert.equal(asLeftPatch.body.data[0].attributes.cf_results, "FAIL");
+    assert.equal(asLeftPatch.body.data[0].name, "row-2");
+  });
+
+  it("preserves existing row UUIDs (PATCH, not POST)", async () => {
+    const tableRows = {
+      data: [{
+        name: "existing-uuid-abc",
+        values: {
+          cf_standard_reading_as_found: "5",
+          cf_uut_as_found: "5",
+          cf_calibration_tolerance: "<=1.0",
+          cf_difference_as_found: "",
+          cf_results: "",
+        },
+      }],
+    };
+
+    const patchCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (opts?.method === "PATCH") { patchCalls.push(JSON.parse(opts.body)); return { ok: true, status: 200, json: async () => ({}) }; }
+      if (url.includes("/table/")) return { ok: true, status: 200, json: async () => tableRows };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+
+    await run("9080", "1");
+
+    assert.equal(patchCalls[0].data[0].name, "existing-uuid-abc");
+  });
+
+  it("skips tables with no rows", async () => {
+    const patchCalls = [];
+    mock.method(globalThis, "fetch", async (url, opts) => {
+      if (opts?.method === "PATCH") { patchCalls.push(url); return { ok: true, status: 200, json: async () => ({}) }; }
+      if (url.includes("/table/")) return { ok: true, status: 200, json: async () => ({ data: [] }) };
+      return { ok: false, status: 404, text: async () => "Not Found", headers: { get: () => null } };
+    });
+    mock.method(process, "exit", () => {});
+
+    await run("9080", "1");
+    assert.equal(patchCalls.length, 0);
   });
 });

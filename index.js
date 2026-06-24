@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getRecordMetadata, postTableRows } from "./services/ace-api.js";
+import { getRecordMetadata, getTableRows, postTableRows, patchTableRows } from "./services/ace-api.js";
 import { parseTableField, buildTableRows, computeAsFoundRow, computeAsLeftRow } from "./utils/table-helpers.js";
 
 const TABLE_MAP = [
@@ -7,13 +7,11 @@ const TABLE_MAP = [
     label: "As Found Data",
     parentField: "cf_as_found_data_table",
     get fieldId() { return process.env.AS_FOUND_DATA_TABLE_ID; },
-    computeFn: computeAsFoundRow,
   },
   {
     label: "As Left Data",
     parentField: "cf_as_left_data_table",
     get fieldId() { return process.env.AS_LEFT_DATA_TABLE_ID; },
-    computeFn: computeAsLeftRow,
   },
   {
     label: "Manufacture Range and Calibration Tolerance",
@@ -32,15 +30,57 @@ const TABLE_MAP = [
   },
 ];
 
-export async function run(childRecordId, projectId) {
-  if (!childRecordId) {
-    console.error(`[${new Date().toISOString()}] ERROR: childRecordId argument is required. Usage: node index.js <childRecordId> <projectId>`);
-    process.exit(1);
+const CALC_TABLES = [
+  {
+    label: "As Found Data",
+    get fieldId() { return process.env.AS_FOUND_DATA_TABLE_ID; },
+    computeFn: computeAsFoundRow,
+  },
+  {
+    label: "As Left Data",
+    get fieldId() { return process.env.AS_LEFT_DATA_TABLE_ID; },
+    computeFn: computeAsLeftRow,
+  },
+];
+
+async function runCalculations(recordId) {
+  console.log(`[${new Date().toISOString()}] Starting calculations for asset record: ${recordId}`);
+
+  for (const table of CALC_TABLES) {
+    let tableData;
+    try {
+      tableData = await getTableRows(recordId, table.fieldId);
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] ERROR: Failed to fetch "${table.label}" from record ${recordId}: ${err.message}`);
+      continue;
+    }
+
+    const rows = tableData?.data;
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      console.warn(`[${new Date().toISOString()}] WARN: No rows found for "${table.label}" — skipping.`);
+      continue;
+    }
+
+    const updatedRows = rows.map((row) => ({
+      type: "record-table-row",
+      name: row.name,
+      attributes: table.computeFn(row.values ?? {}),
+    }));
+
+    try {
+      await patchTableRows(recordId, table.fieldId, updatedRows);
+      console.log(`[${new Date().toISOString()}] OK: Patched ${updatedRows.length} row(s) on "${table.label}" (field ID ${table.fieldId}) for record ${recordId}.`);
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] ERROR: Failed to patch "${table.label}" on record ${recordId}: ${err.message}`);
+    }
   }
 
-  console.log(`[${new Date().toISOString()}] Starting migration for child record: ${childRecordId} (project: ${projectId})`);
+  console.log(`[${new Date().toISOString()}] Calculations complete for asset record: ${recordId}`);
+}
 
-  // 1. Fetch child record to get parent record ID
+async function runMigration(childRecordId) {
+  console.log(`[${new Date().toISOString()}] Starting migration for child record: ${childRecordId}`);
+
   let childRecord;
   try {
     childRecord = await getRecordMetadata(childRecordId);
@@ -57,7 +97,6 @@ export async function run(childRecordId, projectId) {
 
   console.log(`[${new Date().toISOString()}] Resolved parent record: ${parentRecordId}`);
 
-  // 2. Fetch parent record metadata
   let parentRecord;
   try {
     parentRecord = await getRecordMetadata(parentRecordId);
@@ -68,7 +107,6 @@ export async function run(childRecordId, projectId) {
 
   const parentAttrs = parentRecord?.attributes ?? {};
 
-  // 3. For each table: parse parent data, build rows, POST to child
   for (const table of TABLE_MAP) {
     const rawValue = parentAttrs[table.parentField];
 
@@ -84,7 +122,7 @@ export async function run(childRecordId, projectId) {
       continue;
     }
 
-    const rows = buildTableRows(parsedRows, table.computeFn);
+    const rows = buildTableRows(parsedRows);
 
     try {
       await postTableRows(childRecordId, table.fieldId, rows);
@@ -97,7 +135,21 @@ export async function run(childRecordId, projectId) {
   console.log(`[${new Date().toISOString()}] Migration complete for child record: ${childRecordId}`);
 }
 
-// Auto-run when invoked directly via CLI
+export async function run(recordId, projectId) {
+  if (!recordId) {
+    console.error(`[${new Date().toISOString()}] ERROR: recordId argument is required. Usage: node index.js <recordId> <projectId>`);
+    process.exit(1);
+  }
+
+  const assetProjectId = process.env.ASSET_ID;
+
+  if (projectId === assetProjectId) {
+    await runCalculations(recordId);
+  } else {
+    await runMigration(recordId);
+  }
+}
+
 const isMain = process.argv[1] && (
   process.argv[1].endsWith("index.js") || process.argv[1].endsWith("index")
 );
