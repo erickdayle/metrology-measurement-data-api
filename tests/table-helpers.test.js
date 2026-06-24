@@ -1,6 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseTableField, buildTableRows } from "../utils/table-helpers.js";
+import {
+  parseTableField,
+  buildTableRows,
+  parseTolerance,
+  evaluateTolerance,
+  computeAsFoundRow,
+  computeAsLeftRow,
+} from "../utils/table-helpers.js";
 
 describe("parseTableField", () => {
   it("parses a valid stringified JSON array", () => {
@@ -62,7 +69,6 @@ describe("buildTableRows", () => {
     const rows = buildTableRows(input);
     assert.notEqual(rows[0].name, "old-uuid-1");
     assert.notEqual(rows[1].name, "old-uuid-2");
-    // Each UUID should be unique
     assert.notEqual(rows[0].name, rows[1].name);
   });
 
@@ -70,11 +76,7 @@ describe("buildTableRows", () => {
     const input = [
       {
         name: "old-uuid",
-        values: {
-          cf_data_points: "123",
-          cf_unit: "°C",
-          cf_results: "Pass",
-        },
+        values: { cf_data_points: "123", cf_unit: "°C", cf_results: "Pass" },
       },
     ];
     const rows = buildTableRows(input);
@@ -89,5 +91,204 @@ describe("buildTableRows", () => {
 
   it("returns [] for empty input", () => {
     assert.deepEqual(buildTableRows([]), []);
+  });
+
+  it("applies computeFn when provided", () => {
+    const input = [{ name: "uuid", values: { a: "1" } }];
+    const fn = (v) => ({ ...v, computed: "yes" });
+    const rows = buildTableRows(input, fn);
+    assert.equal(rows[0].attributes.computed, "yes");
+  });
+});
+
+describe("parseTolerance", () => {
+  it("parses <=1.0", () => {
+    const t = parseTolerance("<=1.0");
+    assert.equal(t.operator, "<=");
+    assert.equal(t.value, 1.0);
+  });
+
+  it("parses >=0.5", () => {
+    const t = parseTolerance(">=0.5");
+    assert.equal(t.operator, ">=");
+    assert.equal(t.value, 0.5);
+  });
+
+  it("parses <2", () => {
+    const t = parseTolerance("<2");
+    assert.equal(t.operator, "<");
+    assert.equal(t.value, 2);
+  });
+
+  it("parses >3.5", () => {
+    const t = parseTolerance(">3.5");
+    assert.equal(t.operator, ">");
+    assert.equal(t.value, 3.5);
+  });
+
+  it("parses ± 0.005 as <=0.005", () => {
+    const t = parseTolerance("± 0.005");
+    assert.equal(t.operator, "<=");
+    assert.equal(t.value, 0.005);
+  });
+
+  it("defaults to <= when no operator is given", () => {
+    const t = parseTolerance("1.0");
+    assert.equal(t.operator, "<=");
+    assert.equal(t.value, 1.0);
+  });
+
+  it("returns null for empty string", () => {
+    assert.equal(parseTolerance(""), null);
+  });
+
+  it("returns null for null", () => {
+    assert.equal(parseTolerance(null), null);
+  });
+
+  it("returns null for non-parseable string", () => {
+    assert.equal(parseTolerance("abc"), null);
+  });
+});
+
+describe("evaluateTolerance", () => {
+  it("<= PASS when difference equals tolerance", () => {
+    assert.equal(evaluateTolerance(1.0, { operator: "<=", value: 1.0 }), true);
+  });
+
+  it("<= FAIL when difference exceeds tolerance", () => {
+    assert.equal(evaluateTolerance(1.5, { operator: "<=", value: 1.0 }), false);
+  });
+
+  it(">= PASS when difference meets threshold", () => {
+    assert.equal(evaluateTolerance(2.0, { operator: ">=", value: 1.0 }), true);
+  });
+
+  it("< PASS when difference is below tolerance", () => {
+    assert.equal(evaluateTolerance(0.9, { operator: "<", value: 1.0 }), true);
+  });
+
+  it("< FAIL when difference equals tolerance", () => {
+    assert.equal(evaluateTolerance(1.0, { operator: "<", value: 1.0 }), false);
+  });
+
+  it("> PASS when difference exceeds threshold", () => {
+    assert.equal(evaluateTolerance(1.1, { operator: ">", value: 1.0 }), true);
+  });
+
+  it("returns null when tolerance is null", () => {
+    assert.equal(evaluateTolerance(1.0, null), null);
+  });
+
+  it("returns null when difference is NaN", () => {
+    assert.equal(evaluateTolerance(NaN, { operator: "<=", value: 1.0 }), null);
+  });
+});
+
+describe("computeAsFoundRow", () => {
+  it("computes difference and PASS result", () => {
+    const values = {
+      cf_standard_reading_as_found: "10.0",
+      cf_uut_as_found: "10.3",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.ok(Math.abs(parseFloat(result.cf_difference_as_found) - 0.3) < 0.001);
+    assert.equal(result.cf_results, "PASS");
+  });
+
+  it("computes difference and FAIL result", () => {
+    const values = {
+      cf_standard_reading_as_found: "10.0",
+      cf_uut_as_found: "12.0",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.equal(result.cf_difference_as_found, "2");
+    assert.equal(result.cf_results, "FAIL");
+  });
+
+  it("removes polarity (negative sign)", () => {
+    const values = {
+      cf_standard_reading_as_found: "5.0",
+      cf_uut_as_found: "8.0",
+      cf_calibration_tolerance: "<=5.0",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.equal(result.cf_difference_as_found, "3");
+    assert.equal(result.cf_results, "PASS");
+  });
+
+  it("returns values unchanged when readings are empty", () => {
+    const values = {
+      cf_standard_reading_as_found: "",
+      cf_uut_as_found: "",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.equal(result.cf_difference_as_found, "");
+    assert.equal(result.cf_results, "");
+  });
+
+  it("computes difference but leaves result unchanged when tolerance is empty", () => {
+    const values = {
+      cf_standard_reading_as_found: "10.0",
+      cf_uut_as_found: "10.5",
+      cf_calibration_tolerance: "",
+      cf_difference_as_found: "",
+      cf_results: "",
+    };
+    const result = computeAsFoundRow(values);
+    assert.equal(result.cf_difference_as_found, "0.5");
+    assert.equal(result.cf_results, "");
+  });
+});
+
+describe("computeAsLeftRow", () => {
+  it("computes difference and PASS result", () => {
+    const values = {
+      cf_standard_reading_as_left: "10.0",
+      cf_uut_as_left: "10.2",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_left: "",
+      cf_results: "",
+    };
+    const result = computeAsLeftRow(values);
+    assert.ok(Math.abs(parseFloat(result.cf_difference_as_left) - 0.2) < 0.001);
+    assert.equal(result.cf_results, "PASS");
+  });
+
+  it("computes difference and FAIL result", () => {
+    const values = {
+      cf_standard_reading_as_left: "10.0",
+      cf_uut_as_left: "12.0",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_left: "",
+      cf_results: "",
+    };
+    const result = computeAsLeftRow(values);
+    assert.equal(result.cf_difference_as_left, "2");
+    assert.equal(result.cf_results, "FAIL");
+  });
+
+  it("returns values unchanged when readings are empty", () => {
+    const values = {
+      cf_standard_reading_as_left: "",
+      cf_uut_as_left: "",
+      cf_calibration_tolerance: "<=1.0",
+      cf_difference_as_left: "",
+      cf_results: "",
+    };
+    const result = computeAsLeftRow(values);
+    assert.equal(result.cf_difference_as_left, "");
+    assert.equal(result.cf_results, "");
   });
 });

@@ -1,17 +1,19 @@
 import "dotenv/config";
 import { getRecordMetadata, postTableRows } from "./services/ace-api.js";
-import { parseTableField, buildTableRows } from "./utils/table-helpers.js";
+import { parseTableField, buildTableRows, computeAsFoundRow, computeAsLeftRow } from "./utils/table-helpers.js";
 
 const TABLE_MAP = [
   {
     label: "As Found Data",
     parentField: "cf_as_found_data_table",
     get fieldId() { return process.env.AS_FOUND_DATA_TABLE_ID; },
+    computeFn: computeAsFoundRow,
   },
   {
     label: "As Left Data",
     parentField: "cf_as_left_data_table",
     get fieldId() { return process.env.AS_LEFT_DATA_TABLE_ID; },
+    computeFn: computeAsLeftRow,
   },
   {
     label: "Manufacture Range and Calibration Tolerance",
@@ -82,7 +84,7 @@ export async function run(childRecordId, projectId) {
       continue;
     }
 
-    const rows = buildTableRows(parsedRows);
+    const rows = buildTableRows(parsedRows, table.computeFn);
 
     try {
       await postTableRows(childRecordId, table.fieldId, rows);
